@@ -1,6 +1,7 @@
 import openai
 from io import BytesIO
 import io
+import os
 import sys
 import time
 import sqlalchemy as db
@@ -57,6 +58,7 @@ def closeProgram():
     rt.stop() # better in a try/finally block to make sure the program ends!
     beforeExit()
     window.close()
+    os._exit(os.EX_OK)
 
 
 #----------------------------------------------------------------
@@ -686,3 +688,4 @@ while loop:  # Event Loop
         window['-AGENT-CHATLOG-'].widget.config(wrap='word')
     elif event == 'None':
         window['-AGENT-CHATLOG-'].widget.config(wrap='none')
+closeProgram()

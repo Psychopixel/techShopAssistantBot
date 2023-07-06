@@ -138,6 +138,23 @@ def record_audio(seconds: int, output_path = "output.wav"):
         frames.append(data)
     p.terminate()
 
+def speakChat(text:str, voice:str)->bool:
+    if DO_SPEAK==False:
+        time.sleep(2)
+        return True
+    voice_type = config["TEXT_TO_SPEECH_TYPE"]
+    if voice_type == "azure":
+        result = speakAzure(voice=voice, text=text)
+        return result
+    elif voice_type == "eleven":
+        eleven_api_key = config["ELEVEN_API_KEY"]
+        set_api_key(eleven_api_key)
+        playVoiceWithElevenlabs(voice, text)
+        return True
+    elif voice_type == "google":
+        result = playVoiceWithGoogle(text, voice=voice)
+        return result
+
 def speak(text:str)->bool:
     if DO_SPEAK==False:
         time.sleep(2)
@@ -174,6 +191,7 @@ def playVoiceWithElevenlabs(voice, text):
         model='eleven_multilingual_v1'
     )
     play(audio)
+
 
 #----------------------------------------------------------------------
 # google tts
@@ -226,6 +244,7 @@ def speakAzure(voice:str="en-GB-OliviaNeural", text:str="", debug:bool=False)->b
     if DO_SPEAK==False:
         return
     global speech_config
+    global speech_synthesizer
     speech_config = initAzureVoice()
     # Set the voice name, refer to https://aka.ms/speech/voices/neural for full list.
     speech_config.speech_synthesis_voice_name = voice
