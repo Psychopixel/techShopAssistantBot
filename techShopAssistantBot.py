@@ -109,7 +109,7 @@ def collect_messages(user_input, debug=False):
     context.append({'role':'assistant', 'content':f"{response}"})
     print ("Response: "+ response)
     chat_row ={"agent":"Bot", "text":response+"\n"}
-    result = robSpeak.speakAzure("en-GB-OliviaNeural", str(response))
+    result = robSpeak.speak(str(response))
     chat.append(chat_row)
     updateScreen(chat)
     bot = False
@@ -545,7 +545,7 @@ def logic():
         firstMessage = False
         bot = False
         running = True
-        result = robSpeak.speakAzure("en-GB-OliviaNeural", text_input)
+        result = robSpeak.speak(text_input)
     
 
 #----------------------------------------------------------------
