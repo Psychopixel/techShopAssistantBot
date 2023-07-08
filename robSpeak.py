@@ -139,6 +139,7 @@ def record_audio(seconds: int, output_path = "output.wav"):
     p.terminate()
 
 def speakChat(text:str, voice:str)->bool:
+    global agentVoice
     if DO_SPEAK==False:
         time.sleep(2)
         return True
@@ -149,6 +150,7 @@ def speakChat(text:str, voice:str)->bool:
     elif voice_type == "eleven":
         eleven_api_key = config["ELEVEN_API_KEY"]
         set_api_key(eleven_api_key)
+        agentVoice = voices()
         playVoiceWithElevenlabs(voice, text)
         return True
     elif voice_type == "google":
@@ -156,6 +158,7 @@ def speakChat(text:str, voice:str)->bool:
         return result
 
 def speak(text:str)->bool:
+    global agentVoice
     if DO_SPEAK==False:
         time.sleep(2)
         return True
@@ -185,6 +188,7 @@ def stopSpeak():
 #----------------------------------------------------------------------
 # elevenlabs tts
 def playVoiceWithElevenlabs(voice, text):
+    global agentVoice
     audio = generate(
         text=text,
         voice=voice,
