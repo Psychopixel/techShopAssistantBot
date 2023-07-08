@@ -1,3 +1,4 @@
+version="<!#FV> 0.0.1 </#FV>"
 import wave
 import pyaudio
 import azure.cognitiveservices.speech as speechsdk
