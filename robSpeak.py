@@ -1,4 +1,4 @@
-version="<!#FV> 0.0.1 </#FV>"
+version="<!#FV> 0.0.2 </#FV>"
 import wave
 import pyaudio
 import azure.cognitiveservices.speech as speechsdk
@@ -118,9 +118,6 @@ def stopRecording():
     else:
         print("Nothing went wrong")
     bot = True
-    #chat_row ={"agent":"User", "text":response["text"]+"\n\n"}
-    #chat.append(chat_row)
-    #updateScreen(chat)
     recording = False
     p.terminate()
     return response
