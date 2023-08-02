@@ -1,12 +1,8 @@
 import openai
-import azure.cognitiveservices.speech as speechsdk
-from azure.cognitiveservices.speech import SpeechConfig
-import wave
 from io import BytesIO
 import io
 import os
 import sys
-import pyaudio
 import time
 import sqlalchemy as db
 import json
@@ -19,167 +15,14 @@ from tenacity import (
     stop_after_attempt,
     wait_random_exponential,
 )  # for exponential backoff 
-import asyncio
+import robSpeak
 import robAiUtility
 
-#----------------------------------------------------------------
-# decorator per gestire l'asincronicità di una funzione
-def background(f):
-    def wrapped(*args, **kwargs):
-        return asyncio.get_event_loop().run_in_executor(None, f, *args, **kwargs)
-    return wrapped
-
-
-# Define a function to open a file and return its contents as a string
-def open_file(filepath):
-    with open(filepath, 'r', encoding='utf-8') as infile:
-        return infile.read()
-
-# Define a function to save content to a file
-def save_file(filepath, content):
-    with open(filepath, 'a', encoding='utf-8') as outfile:
-        outfile.write(content)
-
-#define a function to remove a file
-def remove_file(filepath):
-    try:
-        os.remove(filepath)
-        #print("Il file è stato cancellato con successo.")
-    except FileNotFoundError:
-        print("Errore: Il file "+filepath+" non è stato trovato.")
-    except PermissionError:
-        print("Errore: Non hai i permessi per cancellare il file " + filepath)
-    except Exception as e:
-        print("Errore: Si è verificato un errore:", e)
-
-#----------------------------------------------------------------
-# inizia la registrazione dell'audio in modo asincrono
-@background
-def startRecording():
-    global recording
-    global user_stream
-    global p
-    global frames
-    global bot
-   
-    user_stream = p.open(format=FORMAT,
-                    channels=CHANNELS,
-                    rate=RATE,
-                    input=True,
-                    frames_per_buffer=CHUNK)
-    frames = []
-
-    for i in range(0, int(RATE / CHUNK * MAX_REC_TIME)):
-        if(recording==True):
-            data = user_stream.read(CHUNK)
-            frames.append(data)
-        else:
-            break
-    if(recording):
-        recording = False
-    bot = True
-
-#----------------------------------------------------------------
-# ferma la registrazione e ritorna la trascrizione dell'audio
-def stopRecording():
-    global recording
-    global user_stream
-    global p
-    global frames
-    global bot
-    recording = False
-    user_stream.stop_stream()
-    user_stream.close()
-
-
-    wf=wave.open('output.wav', "wb")
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b''.join(frames))
-    wf.close()
-    try:
-        audio_file = open("output.wav", "rb")
-    except:
-        print("Something went wrong")
-        return ''
-    else:
-        print("Nothing went wrong")
-    response={}
-    response["text"] = ""
-    try:
-        response = openai.Audio.transcribe(
-            model="whisper-1",
-            file=audio_file
-        )
-    except:
-        print("Something went wrong")
-        return ''
-    else:
-        print("Nothing went wrong")
-    bot = True
-    #chat_row ={"agent":"User", "text":response["text"]+"\n\n"}
-    #chat.append(chat_row)
-    #updateScreen(chat)
-    recording = False
-    return response
-    
-#----------------------------------------------------------------
-def record_audio(seconds: int, output_path = "output.wav"):
-    p = pyaudio.PyAudio()
-    user_stream = p.open(format=FORMAT,
-                    channels=CHANNELS,
-                    rate=RATE,
-                    input=True,
-                    frames_per_buffer=CHUNK)
-    frames = []
-    for i in range(0, int(RATE / CHUNK * seconds)):
-        data = user_stream.read(CHUNK)
-        frames.append(data)
    
 
 @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
 def completion_with_backoff(**kwargs):
     return openai.Completion.create(**kwargs)
-
-
-def initAzureVoice():
-    # Creates an instance of a speech config with specified subscription key and service region.
-    # Replace with your own subscription key and service region (e.g., "westus").
-    
-    os.environ["COGNITIVE_SERVICE_KEY"]=config["AZURE_ISABELLA_KEY"]
-    speech_key, service_region = config["AZURE_ISABELLA_KEY"], config["AZURE_SPEECH_REGION"]
-    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
-    # Creates a speech synthesizer using the default speaker as audio output.
-    
-    return speech_config
-
-
-def speakAzure(speech_config:SpeechConfig ,voice:str="en-GB-OliviaNeural", text:str="", debug:bool=False)->bool:
-    if DO_SPEAK==False:
-        return
-    # Set the voice name, refer to https://aka.ms/speech/voices/neural for full list.
-    speech_config.speech_synthesis_voice_name = voice
-    speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
-    #result = speech_synthesizer.speak_text_async(text).get()
-    result = speech_synthesizer.speak_text(text)
-    # Checks result.
-    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        if debug:
-            print("Speech synthesized to speaker for text [{}]".format(text))
-        return True
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        if debug:
-            print("Speech synthesis canceled: {}".format(cancellation_details.reason))
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            if cancellation_details.error_details:
-                if debug:
-                    print("Error details: {}".format(cancellation_details.error_details))
-        if debug:
-            print("Did you update the subscription info?")
-        return False
-
 
 
 #----------------------------------------------------------------
@@ -207,7 +50,6 @@ def simulate_typing(text,  color, chunk_size=5, delay=0.1):
 def beforeExit():
     global running
     running = False
-    p.terminate()
     rt.stop()
 
 #----------------------------------------------------------------
@@ -216,6 +58,7 @@ def closeProgram():
     rt.stop() # better in a try/finally block to make sure the program ends!
     beforeExit()
     window.close()
+    os._exit(os.EX_OK)
 
 
 #----------------------------------------------------------------
@@ -268,7 +111,7 @@ def collect_messages(user_input, debug=False):
     context.append({'role':'assistant', 'content':f"{response}"})
     print ("Response: "+ response)
     chat_row ={"agent":"Bot", "text":response+"\n"}
-    result = speakAzure(speech_config, "en-GB-OliviaNeural", str(response))
+    result = robSpeak.speak(str(response))
     chat.append(chat_row)
     updateScreen(chat)
     bot = False
@@ -704,7 +547,7 @@ def logic():
         firstMessage = False
         bot = False
         running = True
-        result = speakAzure(speech_config, "en-GB-OliviaNeural", text_input)
+        result = robSpeak.speak(text_input)
     
 
 #----------------------------------------------------------------
@@ -713,22 +556,11 @@ def logic():
 bot = True
 firstMessage = True
 buttonPressed = False
+
 buttonImage = 1
 recording = False
 
-# Record Some audio
-MAX_REC_TIME = 60
-CHUNK = 1024
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 44100
-DO_SPEAK=True
 
-p = pyaudio.PyAudio()
-frames = []
-stream = ''
-user_stream = ''
-shop_agent_voice = "en-GB-OliviaNeural"
 
 global config
 if (find_dotenv()==""):
@@ -737,8 +569,10 @@ if (find_dotenv()==""):
 
 config = dotenv_values(find_dotenv())
 openai.api_key = config["OPENAI_API_KEY"]
-  
-speech_config = initAzureVoice()
+
+robSpeak.init()
+
+
 #----------------------------------------------------------------
 # inizialize db
 
@@ -828,17 +662,16 @@ while loop:  # Event Loop
                 collect_messages(text_input, debug=False)
         elif event == '-REC- Press':
             if(bot==False):
-                recording = True
-                startRecording()
+                robSpeak.startRecording()
                 buttonPressed = True
                 window['-REC-'].update(image_filename='gui/mic_icon_on.png', image_subsample=2)
                 window.Refresh()
         elif event == '-REC- Release':
-            recording = False
+            
             buttonPressed = False
             window['-REC-'].update(image_filename='gui/mic_icon_off.png', image_subsample=2)
             window.Refresh()
-            userText = stopRecording()["text"]
+            userText = robSpeak.stopRecording()["text"]
             if(userText!=''):
                 window['-USER_INPUT-'].update('')
                 chat_row ={"agent":"User", "text":userText+"\n\n"}
@@ -855,3 +688,4 @@ while loop:  # Event Loop
         window['-AGENT-CHATLOG-'].widget.config(wrap='word')
     elif event == 'None':
         window['-AGENT-CHATLOG-'].widget.config(wrap='none')
+closeProgram()

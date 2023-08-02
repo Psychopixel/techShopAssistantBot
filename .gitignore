@@ -1,2 +1,7 @@
-
+venv
 .DS_Store
+.vscode/launch.json
+robAiUtility/__pycache__/__init__.cpython-311.pyc
+techShopAssistantBot.code-workspace
+output.wav
+__pycache__/robAiUtility.cpython-311.pyc

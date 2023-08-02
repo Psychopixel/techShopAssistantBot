@@ -1,3 +1,4 @@
+version="<!#FV> 0.0.1 </#FV>"
 import os
 import openai
 import tiktoken
